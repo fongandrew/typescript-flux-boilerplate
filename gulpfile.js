@@ -6,10 +6,10 @@
 var config = {
   // The TS file(s) that requires all other TS files (i.e. the "main" or 
   // "index" files
-  tsEntryPoint: "src/ts/app.ts",
+  tsEntryPoint: "./src/ts/app.ts",
 
   // Bower components directory
-  bowerDir: "bower_components",
+  bowerDir: "./bower_components",
 
   // General src dir
   src: "./src",
@@ -136,11 +136,17 @@ gulp.task("build-bower-js", function() {
   var jsFiles = mainBowerFiles({
     filter: "**/*.js"
   });
-  return gulp.src(jsFiles)
-    .pipe(buffer())
+  return gulp.src(jsFiles, {base: config.bowerDir})
+    // Concatenate files while preserving source map and add a version hash
+    // for cache-busting purposes
     .pipe(sourcemaps.init())
     .pipe(concat("vendor.js"))
     .pipe(rev())
+    .pipe(sourcemaps.write())
+
+    // For some reason concat + uglify doesn't prserve source maps unless each
+    // is wrapped in their own sourcemaps block
+    .pipe(sourcemaps.init({loadMaps: true}))
     .pipe(uglify()).on("error", gutil.log)
     .pipe(sourcemaps.write("./"))
     .pipe(gulp.dest(config.dist + config.distVendor + config.distJS))
@@ -165,11 +171,16 @@ gulp.task("build-bower-css", function() {
     }
   });
 
-  return gulp.src(cssFiles)
-    .pipe(buffer())
+  return gulp.src(cssFiles, {base: config.bowerDir})
+    // Concatenate vendor.css into a single cache-busting bundle
     .pipe(sourcemaps.init())
     .pipe(concat("vendor.css"))
     .pipe(rev())
+    .pipe(sourcemaps.write())
+
+    // For some reason, minification + concat don't work well unless each
+    // get their own sourcemap block
+    .pipe(sourcemaps.init({loadMaps: true}))
     .pipe(minifyCss()).on("error", gutil.log)
     .pipe(sourcemaps.write("./"))
     .pipe(gulp.dest(config.dist + config.distVendor + config.distCss))
@@ -222,11 +233,13 @@ gulp.task("build", gulp.series(
 
 gulp.task("watch-src", function() {
   return gulp.watch(config.src + "/**/*.*", 
+    {debounceDelay: 1000},
     gulp.series("build-src", "build-html"));
 });
 
 gulp.task("watch-vendor", function() {
   return gulp.watch(config.bowerDir + "/**/bower.json", 
+    {debounceDelay: 1000},
     gulp.series("build-vendor", "build-html"));
 });
 

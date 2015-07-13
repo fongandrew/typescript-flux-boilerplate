@@ -10,9 +10,7 @@ s = new shapes.Square(10);
 
 console.log(process.env.NODE_ENV);
 
-function go(): void {
-  $("body").text("Go go gadget!!");
-};
-
 declare var gogogo: () => void;
-gogogo = go;
+gogogo = function(): void {
+  $("body").text("Go go gadget!!!");
+};
