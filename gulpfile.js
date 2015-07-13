@@ -4,38 +4,42 @@
 
 // For your configuration pleasure
 var config = {
+  // General src dir (to watch for reloads)
+  srcDir: "./src",
+
   // The TS file(s) that requires all other TS files (i.e. the "main" or 
-  // "index" files
+  // "index" files (relative to src)
   tsEntryPoint: "./src/ts/app.ts",
+
+  // Where to look for SCSS files (relative to src)
+  scssDir: "./src/scss",
 
   // Bower components directory
   bowerDir: "./bower_components",
 
-  // General src dir
-  src: "./src",
+  // Where builds go (generally)
+  distDir: "./dist",
 
-  // Where builds go
-  dist: "./dist",
+  // Directory for our generated Javascript
+  distJSDir: "./dist/js",
 
-  // Subdirectory in build folder for bower-specific stuff
-  // This only gets rebuilt when bower files get updated
-  distVendor: "/vendor",
+  // Directory for our generated CSS
+  distCssDir: "./dist/css",
 
-  // Subdirector in vendor folder for Javascript
-  distJS: "/js",
+  // Directory for fonts
+  distFontsDir: "./dist/fonts",
 
-  // Subdirector in vendor folder for stylesheets
-  distCss: "/css",
+  // Bower packages from which to exclude bundling (e.g. because we prefer to 
+  // use the SASS build of a particular package)
+  cssExclude: [],
 
-  // Subdirector in vendor folder for fonts
-  distFonts: "/fonts",
+  // Directory for manifest files (used during HTML processing to write
+  // hashed cached-busting paths). Sticking these in ./dist makes them
+  // public but that's fine (and it automatically gets cleaned up)
+  manifestsDir: "./dist/manifests",
 
   // Dev port (on localhost)
-  port: 3000,
-
-  // Packages from which to exclude (e.g. because we prefer to use the SASS
-  // build of a particular package)
-  cssExclude: []
+  port: 3000
 };
 
 /* global require: false */
@@ -58,7 +62,8 @@ var _ = require("lodash"),
     bower = require("gulp-bower"),
     mainBowerFiles = require("main-bower-files"),
     minifyCss = require("gulp-minify-css"),
-    flatten = require("gulp-flatten");
+    flatten = require("gulp-flatten"),
+    sass = require("gulp-sass");
 
 
 // INSTALL ///////////////////////////
@@ -74,18 +79,39 @@ gulp.task("post-install", gulp.parallel(installBower));
 
 // CLEAN ///////////////////////////
 
-gulp.task("clean-src", function(cb) {
-  del([config.dist + "/**/*", 
-       "!" + config.dist + config.distVendor,
-       "!" + config.dist + config.distVendor + "/**/*"], cb);
+// NB: Leave folder patterns alone when doing a partial clean since removing
+// a folder removes everything inside (both vendor and src). Do a full clean 
+// when we want to clean up folder patterns.
+
+gulp.task("clean-src-html", function(cb) {
+  del([config.distDir + "/**/*.html"], cb);
 });
+
+gulp.task("clean-src-js", function(cb) {
+  del([config.distDir + "/**/*.js",
+       config.distDir + "/**/*.js.map",
+       "!" + config.distDir + "/**/vendor*.*"], cb);
+});
+
+gulp.task("clean-src-css", function(cb) {
+  del([config.distDir + "/**/*.css",
+       config.distDir + "/**/*.css.map",
+       "!" + config.distDir + "/**/vendor*.*"], cb);
+});
+
+gulp.task("clean-src", 
+  gulp.parallel("clean-src-html", "clean-src-js", "clean-src-css"));
 
 gulp.task("clean-vendor", function(cb) {
-  del(config.dist + config.distVendor, cb);
+  del([config.distDir + "/**/vendor*.*",
+       config.distFontsDir], cb);
 });
 
-// Clean out old dist dir files
-gulp.task("clean", gulp.parallel("clean-src", "clean-vendor"));
+// Clean everything => remove the directory rather than globbing our way
+// through specific patterns
+gulp.task("clean", function(cb) {
+  del([config.distDir]);
+});
 
 
 // BUILD //////////////////////////
@@ -121,14 +147,36 @@ gulp.task("build-ts", function() {
     .pipe(sourcemaps.write("./"))
 
     // Write TS field
-    .pipe(gulp.dest(config.dist))
+    .pipe(gulp.dest(config.distJSDir))
 
     // Write manifest so HTML can update its references accordingly
     .pipe(rev.manifest("ts-manifest.json"))
-    .pipe(gulp.dest(config.dist));
+    .pipe(gulp.dest(config.manifestsDir));
 });
 
-gulp.task("build-src", gulp.series("clean-src", "build-ts"));
+// Compile, concatenate, and minimize SASS/SCSS files with sourcemaps
+gulp.task("build-sass", function() {
+  return gulp.src(config.scssDir + "/**/*.scss", {base: config.scssDir})
+    .pipe(sourcemaps.init())
+    .pipe(sass())
+    .pipe(concat("bundle.css"))
+    .pipe(rev())                  // cache-buster
+    .pipe(sourcemaps.write())
+
+    // For some reason, minification + concat don't work well unless each
+    // get their own sourcemap block
+    .pipe(sourcemaps.init({loadMaps: true}))
+    .pipe(minifyCss()).on("error", gutil.log)
+    .pipe(sourcemaps.write("./"))
+    .pipe(gulp.dest(config.distCssDir))
+
+    // Write manifest so HTML can update its references accordingly
+    .pipe(rev.manifest("sass-manifest.json"))
+    .pipe(gulp.dest(config.manifestsDir));
+});
+
+gulp.task("build-src", gulp.series("clean-src", 
+  gulp.parallel("build-ts", "build-sass")));
 
 // Concatenate vendor js files from bower_components, minify, compile
 // source maps and push
@@ -149,11 +197,11 @@ gulp.task("build-bower-js", function() {
     .pipe(sourcemaps.init({loadMaps: true}))
     .pipe(uglify()).on("error", gutil.log)
     .pipe(sourcemaps.write("./"))
-    .pipe(gulp.dest(config.dist + config.distVendor + config.distJS))
+    .pipe(gulp.dest(config.distJSDir))
 
     // Write manifest so HTML can update its references accordingly
     .pipe(rev.manifest("vendor-js-manifest.json"))
-    .pipe(gulp.dest(config.dist + config.distVendor)); 
+    .pipe(gulp.dest(config.manifestsDir));
 });
 
 // Concatenate vendor css files from bower_components, minify and push
@@ -183,11 +231,11 @@ gulp.task("build-bower-css", function() {
     .pipe(sourcemaps.init({loadMaps: true}))
     .pipe(minifyCss()).on("error", gutil.log)
     .pipe(sourcemaps.write("./"))
-    .pipe(gulp.dest(config.dist + config.distVendor + config.distCss))
+    .pipe(gulp.dest(config.distCssDir))
 
     // Write manifest so HTML can update its references accordingly
     .pipe(rev.manifest("vendor-css-manifest.json"))
-    .pipe(gulp.dest(config.dist + config.distVendor));
+    .pipe(gulp.dest(config.manifestsDir));
 });
 
 // Push Bower fonts to dist dir
@@ -197,7 +245,7 @@ gulp.task("build-bower-fonts", function() {
   });
   return gulp.src(fontFiles)
     .pipe(flatten())
-    .pipe(gulp.dest(config.dist + config.distVendor + config.distFonts));
+    .pipe(gulp.dest(config.distFontsDir));
 });
 
 gulp.task("build-vendor", gulp.series("clean-vendor", 
@@ -207,17 +255,19 @@ gulp.task("build-vendor", gulp.series("clean-vendor",
 // Rewrite links in HTML files accordingly
 gulp.task("build-html", function() {
   // Use the manifest for rewriting asset references (for cache-busting)
-  var tsManifest = gulp.src(config.dist + "/ts-manifest.json");
-  var vendorJsManifest = gulp.src(
-    config.dist + config.distVendor + "/vendor-js-manifest.json");
-  var vendorCssManifest = gulp.src(
-    config.dist + config.distVendor + "/vendor-css-manifest.json");
+  var manifests = gulp.src(config.manifestsDir + "/**/*.json");
+  // var tsManifest = gulp.src(config.distDir + "/ts-manifest.json");
+  // var vendorJsManifest = gulp.src(
+  //   config.distDir + config.distDirVendor + "/vendor-js-manifest.json");
+  // var vendorCssManifest = gulp.src(
+  //   config.distDir + config.distDirVendor + "/vendor-css-manifest.json");
 
-  return gulp.src(config.src + "/**/*.html")
-    .pipe(revReplace({manifest: tsManifest}))
-    .pipe(revReplace({manifest: vendorJsManifest}))
-    .pipe(revReplace({manifest: vendorCssManifest}))
-    .pipe(gulp.dest(config.dist))
+  return gulp.src(config.srcDir + "/**/*.html")
+    .pipe(revReplace({manifest: manifests}))
+    // .pipe(revReplace({manifest: tsManifest}))
+    // .pipe(revReplace({manifest: vendorJsManifest}))
+    // .pipe(revReplace({manifest: vendorCssManifest}))
+    .pipe(gulp.dest(config.distDir))
 
     // Trigger live-reload
     .pipe(connect.reload());
@@ -232,7 +282,7 @@ gulp.task("build", gulp.series(
 
 
 gulp.task("watch-src", function() {
-  return gulp.watch(config.src + "/**/*.*", 
+  return gulp.watch(config.srcDir + "/**/*.*", 
     {debounceDelay: 1000},
     gulp.series("build-src", "build-html"));
 });
@@ -247,7 +297,7 @@ gulp.task("watch", gulp.parallel("watch-src", "watch-vendor"));
 
 gulp.task("open", function(cb) {
   connect.server({
-    root: config.dist,
+    root: config.distDir,
     port: config.port,
     livereload: true
   });
