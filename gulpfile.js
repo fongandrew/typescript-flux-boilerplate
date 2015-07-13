@@ -1,5 +1,7 @@
 "use strict";
 
+// NB: This gulp file is intended to be used with Gulp 4.0!
+
 // For your configuration pleasure
 var config = {
   // The TS file(s) that requires all other TS files (i.e. the "main" or 
@@ -15,15 +17,35 @@ var config = {
   // Where builds go
   dist: "./dist",
 
+  // Subdirectory in build folder for bower-specific stuff
+  // This only gets rebuilt when bower files get updated
+  distVendor: "/vendor",
+
+  // Subdirector in vendor folder for Javascript
+  distJS: "/js",
+
+  // Subdirector in vendor folder for stylesheets
+  distCss: "/css",
+
+  // Subdirector in vendor folder for fonts
+  distFonts: "/fonts",
+
   // Dev port (on localhost)
-  port: 3000
+  port: 3000,
+
+  // Packages from which to exclude (e.g. because we prefer to use the SASS
+  // build of a particular package)
+  cssExclude: []
 };
 
 /* global require: false */
-var gulp = require("gulp"),
+var _ = require("lodash"),
+    path = require("path"),
+    gulp = require("gulp"),
     browserify = require("browserify"),
     source = require("vinyl-source-stream"),
     buffer = require("vinyl-buffer"),
+    concat = require("gulp-concat"),
     sourcemaps = require("gulp-sourcemaps"),
     envify = require("envify/custom"),
     del = require("del"),
@@ -33,39 +55,43 @@ var gulp = require("gulp"),
     uglify = require("gulp-uglify"),
     connect = require("gulp-connect"),
     opener = require("opener"),
-    bower = require('gulp-bower');
+    bower = require("gulp-bower"),
+    mainBowerFiles = require("main-bower-files"),
+    minifyCss = require("gulp-minify-css"),
+    flatten = require("gulp-flatten");
 
 
-////////////////////
+// INSTALL ///////////////////////////
 
-gulp.task("default", ["watch"]);
+// Install bower components
+var installBower = function() {
+  return bower().pipe(gulp.dest(config.bowerDir));
+};
+
+// Run this after npm install
+gulp.task("post-install", gulp.parallel(installBower));
+
+
+// CLEAN ///////////////////////////
+
+gulp.task("clean-src", function(cb) {
+  del([config.dist + "/**/*", 
+       "!" + config.dist + config.distVendor,
+       "!" + config.dist + config.distVendor + "/**/*"], cb);
+});
+
+gulp.task("clean-vendor", function(cb) {
+  del(config.dist + config.distVendor, cb);
+});
 
 // Clean out old dist dir files
-gulp.task("clean", function() {
-  // Sync to ensure this task is completed before other ones start (since
-  // we don"t return a stream for gulp to wait on)
-  del.sync(config.dist + "/*");
-});
+gulp.task("clean", gulp.parallel("clean-src", "clean-vendor"));
 
-// Build and recompile everything
-gulp.task("build", ["build-html"]);
 
-// Copy index and update asset references
-gulp.task("build-html", ["build-ts"], function() {
-
-  // Use the manifest for rewriting asset references (for cache-busting)
-  var manifest = gulp.src(config.dist + "/ts-manifest.json");
-
-  return gulp.src(config.src + "/**/*.html")
-    .pipe(revReplace({manifest: manifest}))
-    .pipe(gulp.dest(config.dist))
-
-    // Trigger live-reload
-    .pipe(connect.reload());
-});
+// BUILD //////////////////////////
 
 // Compile Typescript
-gulp.task("build-ts", ["clean"], function() {
+gulp.task("build-ts", function() {
   // Browserify traces all requires from entry point
   // NB1: returning is crucial to things running in order
   // NB2: debug = true => sourcemaps
@@ -102,19 +128,121 @@ gulp.task("build-ts", ["clean"], function() {
     .pipe(gulp.dest(config.dist));
 });
 
-// Watch and re-build
-// Build pre-req so we do at least one build before watching
-gulp.task("watch", ["build"], function() {
-  gulp.watch(config.src + "/**/*.*", ["build"]);
+gulp.task("build-src", gulp.series("clean-src", "build-ts"));
+
+// Concatenate vendor js files from bower_components, minify, compile
+// source maps and push
+gulp.task("build-bower-js", function() {
+  var jsFiles = mainBowerFiles({
+    filter: "**/*.js"
+  });
+  return gulp.src(jsFiles)
+    .pipe(buffer())
+    .pipe(sourcemaps.init())
+    .pipe(concat("vendor.js"))
+    .pipe(rev())
+    .pipe(uglify()).on("error", gutil.log)
+    .pipe(sourcemaps.write("./"))
+    .pipe(gulp.dest(config.dist + config.distVendor + config.distJS))
+
+    // Write manifest so HTML can update its references accordingly
+    .pipe(rev.manifest("vendor-js-manifest.json"))
+    .pipe(gulp.dest(config.dist + config.distVendor)); 
+});
+
+// Concatenate vendor css files from bower_components, minify and push
+gulp.task("build-bower-css", function() {
+  // Pull CSS files from Bower but exclude those marked for exclusion
+  var cssFiles = mainBowerFiles({
+    filter: function(filepath) {
+      if (/\.css$/.test(filepath)) {
+        filepath = path.normalize(filepath);
+        return !_.any(config.cssExclude, function(pkg) {
+          var pattern = path.normalize(config.bowerDir + "/" + pkg);
+          return _.contains(filepath, pattern);
+        });
+      }
+    }
+  });
+
+  return gulp.src(cssFiles)
+    .pipe(buffer())
+    .pipe(sourcemaps.init())
+    .pipe(concat("vendor.css"))
+    .pipe(rev())
+    .pipe(minifyCss()).on("error", gutil.log)
+    .pipe(sourcemaps.write("./"))
+    .pipe(gulp.dest(config.dist + config.distVendor + config.distCss))
+
+    // Write manifest so HTML can update its references accordingly
+    .pipe(rev.manifest("vendor-css-manifest.json"))
+    .pipe(gulp.dest(config.dist + config.distVendor));
+});
+
+// Push Bower fonts to dist dir
+gulp.task("build-bower-fonts", function() {
+  var fontFiles = mainBowerFiles({
+    filter: /\.(eot|woff|woff2|svg|ttf)$/
+  });
+  return gulp.src(fontFiles)
+    .pipe(flatten())
+    .pipe(gulp.dest(config.dist + config.distVendor + config.distFonts));
+});
+
+gulp.task("build-vendor", gulp.series("clean-vendor", 
+  gulp.parallel("build-bower-js", "build-bower-css", "build-bower-fonts")));
+
+
+// Rewrite links in HTML files accordingly
+gulp.task("build-html", function() {
+  // Use the manifest for rewriting asset references (for cache-busting)
+  var tsManifest = gulp.src(config.dist + "/ts-manifest.json");
+  var vendorJsManifest = gulp.src(
+    config.dist + config.distVendor + "/vendor-js-manifest.json");
+  var vendorCssManifest = gulp.src(
+    config.dist + config.distVendor + "/vendor-css-manifest.json");
+
+  return gulp.src(config.src + "/**/*.html")
+    .pipe(revReplace({manifest: tsManifest}))
+    .pipe(revReplace({manifest: vendorJsManifest}))
+    .pipe(revReplace({manifest: vendorCssManifest}))
+    .pipe(gulp.dest(config.dist))
+
+    // Trigger live-reload
+    .pipe(connect.reload());
+});
+
+gulp.task("build", gulp.series(
+  gulp.parallel("build-src", "build-vendor"),
+  "build-html"));
+
+
+// WATCH ///////////////////////
+
+
+gulp.task("watch-src", function() {
+  return gulp.watch(config.src + "/**/*.*", 
+    gulp.series("build-src", "build-html"));
+});
+
+gulp.task("watch-vendor", function() {
+  return gulp.watch(config.bowerDir + "/**/bower.json", 
+    gulp.series("build-vendor", "build-html"));
+});
+
+gulp.task("watch", gulp.parallel("watch-src", "watch-vendor"));
+
+gulp.task("open", function(cb) {
   connect.server({
     root: config.dist,
     port: config.port,
     livereload: true
   });
   opener("http://localhost:" + config.port);
+  cb();
 });
 
-// Install bower components
-gulp.task("bower", function() {
-  return bower().pipe(gulp.dest(config.bowerDir));
-});
+// For dev, do an initial build before opening and watching to live reload
+gulp.task("dev", gulp.series("build", "open", "watch"));
+
+gulp.task("default", gulp.series("dev"));

@@ -23,5 +23,6 @@ export class Rectangle extends Polygon {
 export class Square extends Rectangle {
   constructor(length: number) {
     super(length, length);
+    console.log("I'm a square!");
   }
 }
