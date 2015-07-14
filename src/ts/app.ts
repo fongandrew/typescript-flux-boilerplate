@@ -8,7 +8,7 @@ t = new shapes.Triangle();
 t2 = new shapes.Triangle();
 s = new shapes.Square(10);
 
-console.log(process.env.NODE_ENV);
+console.log("Running in " + process.env.NODE_ENV + " mode");
 
 declare var gogogo: () => void;
 gogogo = function(): void {

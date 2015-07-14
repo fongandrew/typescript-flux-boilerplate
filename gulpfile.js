@@ -57,6 +57,7 @@ var config = {
 
 /* global require: false */
 var _ = require("lodash"),
+    argv = require('yargs').argv,
     autoprefixer = require("gulp-autoprefixer"),
     browserify = require("browserify"),
     buffer = require("vinyl-buffer"),
@@ -193,12 +194,20 @@ gulp.task("build-ts", function() {
   var bundleName = path.basename(config.jsBundle);
   var bundleDir = path.dirname(config.jsBundle);
 
+  // Env variables
+  var envVars = {};
+  if (argv.production) {
+    envVars.NODE_ENV = "production";
+  } else {
+    envVars.NODE_ENV = "development";
+  }
+
   // Browserify traces all requires from entry point
   // NB1: returning is crucial to things running in order
   // NB2: debug = true => sourcemaps
   return browserify(config.tsEntryPoint, {debug: true})    
     .plugin("tsify", { noImplicitAny: true })       // Typescript compilation
-    .transform(envify({NODE_ENV: "development"}))   // Env variables
+    .transform(envify(envVars))                     // Env variables
     .bundle()
     .on("error", gutil.log) // This is where Typescript errors get handled
 
@@ -378,7 +387,7 @@ gulp.task("watch-ts", function() {
   tsPaths = _.map(tsPaths, function(p) {
     return p + "/**/*.ts";
   });
-
+  
   return gulp.watch(tsPaths, 
     {debounceDelay: 1000},
     gulp.series("clean-js", "build-ts", "build-html"));
@@ -402,8 +411,18 @@ gulp.task("watch-assets", function() {
     gulp.series("clean-assets", "build-assets", "build-html"));
 });
 
+gulp.task("watch-html", function() {
+  return gulp.watch(config.htmlDir + "/**/*.html", 
+    {debounceDelay: 1000},
+    gulp.series("clean-html", "build-html"));
+});
+
 gulp.task("watch",
-  gulp.parallel("watch-ts", "watch-sass", "watch-vendor", "watch-assets"));
+  gulp.parallel("watch-ts", 
+                "watch-sass", 
+                "watch-vendor", 
+                "watch-assets", 
+                "watch-html"));
 
 gulp.task("open", function(cb) {
   connect.server({
