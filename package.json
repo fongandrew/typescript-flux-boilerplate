@@ -6,6 +6,7 @@
     "build": "gulp build",
     "dev": "gulp dev",
     "bower": "bower",
+    "gulp": "gulp",
     "tsd": "tsd",
     "test": "echo \"Tests pending\" && exit 1"
   },
