@@ -3,34 +3,47 @@
 // NB: This gulp file is intended to be used with Gulp 4.0!
 
 // For your configuration pleasure
+// * NO TRAILING SLASH on filenames.
+// * Use forward slashes (/) even for Windows paths
+// * Best to keep paths relative to this file
 var config = {
-  // General src dir (to watch for reloads)
-  srcDir: "./src",
+  // Where to watch for HTML files
+  htmlDir: "./src",
+
+  // Where to watch for Typescript files, generally
+  tsDir: "./src/ts",
 
   // The TS file(s) that requires all other TS files (i.e. the "main" or 
   // "index" files (relative to src)
   tsEntryPoint: "./src/ts/app.ts",
 
-  // Where to look for SCSS files (relative to src)
+  // Where to look for SASS/SCSS files
   scssDir: "./src/scss",
 
-  // Bower components directory
-  bowerDir: "./bower_components",
+  // Where to find non-script / stylesheet assets
+  assetsDir: "./assets",
 
   // Where builds go (generally)
   distDir: "./dist",
 
-  // Directory for our generated Javascript
-  distJSDir: "./dist/js",
+  // Path for app's bundled Javascript / Typescript
+  jsBundle: "./dist/bundle.js",
 
-  // Directory for our generated CSS
-  distCssDir: "./dist/css",
+  // Path for app's bundled CSS / SCSS
+  cssBundle: "./dist/bundle.css",
 
-  // Directory for fonts
-  distFontsDir: "./dist/fonts",
+  // Path for bundled JS and CSS from bower components
+  vendorJsBundle: "./dist/vendor/js/vendor-bundle.js",
+  vendorCssBundle: "./dist/vendor/css/vendor-bundle.css",
 
-  // Bower packages from which to exclude bundling (e.g. because we prefer to 
-  // use the SASS build of a particular package)
+  // Path for fonts from bower components
+  vendorFontsDir: "./dist/vendor/fonts",
+
+  // Glob patterns for identiyfing generated vendorfiles
+  vendorPatterns: ["./dist/vendor", "./dist/vendor/**/*.*"],
+
+  // Bower packages from which to exclude CSS bundling (e.g. because we prefer 
+  // to use the SASS build of a particular package)
   cssExclude: [],
 
   // Directory for manifest files (used during HTML processing to write
@@ -57,7 +70,7 @@ var _ = require("lodash"),
     gutil = require("gulp-util"),
     mainBowerFiles = require("main-bower-files"),
     minifyCss = require("gulp-minify-css"),
-    opener = require("opener"),
+    openBrowser = require("opener"),
     path = require("path"),
     sass = require("gulp-sass"),
     source = require("vinyl-source-stream"),
@@ -66,12 +79,49 @@ var _ = require("lodash"),
     revReplace = require("gulp-rev-replace"),
     uglify = require("gulp-uglify");
 
+// Infer some other vars from related files
+var inferred = (function() {
+  var ret = {};
+
+  // Get bower components dir
+  var bowerRc;
+  try {
+    bowerRc = require("./.bowerrc");
+  } catch (err) {
+    // Do nothing -> absence of .bowerrc means we default to bower_components
+  }
+
+  if (bowerRc && bowerRc.path) {
+    ret.bowerDir = bowerRc.path;
+  } else {
+    ret.bowerDir = "bower_components";
+  }
+
+  // Get TSD path
+  var tsdJson;
+  try {
+    tsdJson = require("./tsd.json");
+  } catch (err) {
+    console.error("Error importing tsd.json, " + err);
+  }
+  if (tsdJson) {
+    if (! tsdJson.path) {
+      console.error("tsd.json is missing path");
+    } else {
+      ret.typingsDir = tsdJson.path;
+    }
+  }
+
+  return ret;
+})();
+
+
 
 // INSTALL ///////////////////////////
 
 // Install bower components
 var installBower = function() {
-  return bower().pipe(gulp.dest(config.bowerDir));
+  return bower().pipe(gulp.dest(inferred.bowerDir));
 };
 
 // Run this after npm install
@@ -84,28 +134,49 @@ gulp.task("post-install", gulp.parallel(installBower));
 // a folder removes everything inside (both vendor and src). Do a full clean 
 // when we want to clean up folder patterns.
 
-gulp.task("clean-src-html", function(cb) {
-  del([config.distDir + "/**/*.html"], cb);
+// Invert vendor patterns to exclude deleting vendor files when we're cleaning
+// our own JS, etc.
+var notVendor = _.map(config.vendorPatterns, 
+  function(pattern) {
+    return "!" + pattern;
+  });
+
+/** Helper to return extensions of a certain file type in out dist dir that's
+ *  not supplied by a vendor.
+ *  @param {[string]} exts - List of extensions. If extension is preceded
+ *    by a "!", then the extension will be excluded from the list.
+ */
+var distExt = function(exts) {
+  return _.map(exts, function(ext) {
+    if (ext[0] === "!") {
+      ext = ext.slice(1);
+      return "!" + config.distDir + "/**/*." + ext;
+    }
+    return config.distDir + "/**/*." + ext;
+  }).concat(notVendor);
+};
+
+gulp.task("clean-html", function(cb) {
+  del(distExt(["html"]), cb);
 });
 
-gulp.task("clean-src-js", function(cb) {
-  del([config.distDir + "/**/*.js",
-       config.distDir + "/**/*.js.map",
-       "!" + config.distDir + "/**/vendor*.*"], cb);
+gulp.task("clean-js", function(cb) {
+  del(distExt(["js", "js.map"]), cb);
 });
 
-gulp.task("clean-src-css", function(cb) {
-  del([config.distDir + "/**/*.css",
-       config.distDir + "/**/*.css.map",
-       "!" + config.distDir + "/**/vendor*.*"], cb);
+gulp.task("clean-css", function(cb) {
+  del(distExt(["css", "css.map"]), cb);
 });
-
-gulp.task("clean-src", 
-  gulp.parallel("clean-src-html", "clean-src-js", "clean-src-css"));
 
 gulp.task("clean-vendor", function(cb) {
-  del([config.distDir + "/**/vendor*.*",
-       config.distFontsDir], cb);
+  del(config.vendorPatterns, cb);
+});
+
+gulp.task("clean-assets", function(cb) {
+  // Asset patterns = inverse of everything else
+  var patterns = distExt(["*", "!html", "!js", "!css", "!map"]);
+  patterns.push("!" + config.manifestsDir + "/**/*.json");
+  del(patterns, cb);
 });
 
 // Clean everything => remove the directory rather than globbing our way
@@ -119,6 +190,9 @@ gulp.task("clean", function(cb) {
 
 // Compile Typescript
 gulp.task("build-ts", function() {
+  var bundleName = path.basename(config.jsBundle);
+  var bundleDir = path.dirname(config.jsBundle);
+
   // Browserify traces all requires from entry point
   // NB1: returning is crucial to things running in order
   // NB2: debug = true => sourcemaps
@@ -129,7 +203,7 @@ gulp.task("build-ts", function() {
     .on("error", gutil.log) // This is where Typescript errors get handled
 
     // Convert Browserify stream to Vinyl stream for gulp
-    .pipe(source("bundle.js"))
+    .pipe(source(bundleName))
 
     // Because both rev and sourcemaps need buffers isntead of streams        
     .pipe(buffer())
@@ -148,7 +222,7 @@ gulp.task("build-ts", function() {
     .pipe(sourcemaps.write("./"))
 
     // Write TS field
-    .pipe(gulp.dest(config.distJSDir))
+    .pipe(gulp.dest(bundleDir))
 
     // Write manifest so HTML can update its references accordingly
     .pipe(rev.manifest("ts-manifest.json"))
@@ -157,11 +231,14 @@ gulp.task("build-ts", function() {
 
 // Compile, concatenate, and minimize SASS/SCSS files with sourcemaps
 gulp.task("build-sass", function() {
+  var bundleName = path.basename(config.cssBundle);
+  var bundleDir = path.dirname(config.cssBundle);
+
   return gulp.src(config.scssDir + "/**/*.scss", {base: config.scssDir})
     .pipe(sourcemaps.init())
     .pipe(sass())
     .pipe(autoprefixer())
-    .pipe(concat("bundle.css"))
+    .pipe(concat(bundleName))
     .pipe(rev())                  // cache-buster
     .pipe(sourcemaps.write())
 
@@ -170,27 +247,35 @@ gulp.task("build-sass", function() {
     .pipe(sourcemaps.init({loadMaps: true}))
     .pipe(minifyCss()).on("error", gutil.log)
     .pipe(sourcemaps.write("./"))
-    .pipe(gulp.dest(config.distCssDir))
+    .pipe(gulp.dest(bundleDir))
 
     // Write manifest so HTML can update its references accordingly
     .pipe(rev.manifest("sass-manifest.json"))
     .pipe(gulp.dest(config.manifestsDir));
 });
 
-gulp.task("build-src", gulp.series("clean-src", 
-  gulp.parallel("build-ts", "build-sass")));
+// Copy assets over to dist, use a rev hash to cache-bust
+gulp.task("build-assets", function() {
+  return gulp.src(config.assetsDir + "/**/*.*")
+    .pipe(rev())
+    .pipe(gulp.dest(config.distDir))
+    .pipe(rev.manifest("assets-manifest.json"))
+    .pipe(gulp.dest(config.manifestsDir));
+});
 
 // Concatenate vendor js files from bower_components, minify, compile
 // source maps and push
 gulp.task("build-bower-js", function() {
+  var bundleName = path.basename(config.vendorJsBundle);
+  var bundleDir = path.dirname(config.vendorJsBundle);
   var jsFiles = mainBowerFiles({
     filter: "**/*.js"
   });
-  return gulp.src(jsFiles, {base: config.bowerDir})
+  return gulp.src(jsFiles, {base: inferred.bowerDir})
     // Concatenate files while preserving source map and add a version hash
     // for cache-busting purposes
     .pipe(sourcemaps.init())
-    .pipe(concat("vendor.js"))
+    .pipe(concat(bundleName))
     .pipe(rev())
     .pipe(sourcemaps.write())
 
@@ -199,7 +284,7 @@ gulp.task("build-bower-js", function() {
     .pipe(sourcemaps.init({loadMaps: true}))
     .pipe(uglify()).on("error", gutil.log)
     .pipe(sourcemaps.write("./"))
-    .pipe(gulp.dest(config.distJSDir))
+    .pipe(gulp.dest(bundleDir))
 
     // Write manifest so HTML can update its references accordingly
     .pipe(rev.manifest("vendor-js-manifest.json"))
@@ -208,23 +293,26 @@ gulp.task("build-bower-js", function() {
 
 // Concatenate vendor css files from bower_components, minify and push
 gulp.task("build-bower-css", function() {
+  var bundleName = path.basename(config.vendorCssBundle);
+  var bundleDir = path.dirname(config.vendorCssBundle);
+
   // Pull CSS files from Bower but exclude those marked for exclusion
   var cssFiles = mainBowerFiles({
     filter: function(filepath) {
       if (/\.css$/.test(filepath)) {
         filepath = path.normalize(filepath);
         return !_.any(config.cssExclude, function(pkg) {
-          var pattern = path.normalize(config.bowerDir + "/" + pkg);
+          var pattern = path.normalize(inferred.bowerDir + "/" + pkg);
           return _.contains(filepath, pattern);
         });
       }
     }
   });
 
-  return gulp.src(cssFiles, {base: config.bowerDir})
+  return gulp.src(cssFiles, {base: inferred.bowerDir})
     // Concatenate vendor.css into a single cache-busting bundle
     .pipe(sourcemaps.init())
-    .pipe(concat("vendor.css"))
+    .pipe(concat(bundleName))
     .pipe(rev())
     .pipe(sourcemaps.write())
 
@@ -233,7 +321,7 @@ gulp.task("build-bower-css", function() {
     .pipe(sourcemaps.init({loadMaps: true}))
     .pipe(minifyCss()).on("error", gutil.log)
     .pipe(sourcemaps.write("./"))
-    .pipe(gulp.dest(config.distCssDir))
+    .pipe(gulp.dest(bundleDir))
 
     // Write manifest so HTML can update its references accordingly
     .pipe(rev.manifest("vendor-css-manifest.json"))
@@ -247,11 +335,11 @@ gulp.task("build-bower-fonts", function() {
   });
   return gulp.src(fontFiles)
     .pipe(flatten())
-    .pipe(gulp.dest(config.distFontsDir));
+    .pipe(gulp.dest(config.vendorFontsDir));
 });
 
-gulp.task("build-vendor", gulp.series("clean-vendor", 
-  gulp.parallel("build-bower-js", "build-bower-css", "build-bower-fonts")));
+gulp.task("build-vendor",
+  gulp.parallel("build-bower-js", "build-bower-css", "build-bower-fonts"));
 
 
 // Rewrite links in HTML files accordingly
@@ -259,7 +347,7 @@ gulp.task("build-html", function() {
   // Use the manifest for rewriting asset references (for cache-busting)
   var manifests = gulp.src(config.manifestsDir + "/**/*.json");
 
-  return gulp.src(config.srcDir + "/**/*.html")
+  return gulp.src(config.htmlDir + "/**/*.html")
     .pipe(revReplace({manifest: manifests}))
     .pipe(gulp.dest(config.distDir))
 
@@ -267,27 +355,55 @@ gulp.task("build-html", function() {
     .pipe(connect.reload());
 });
 
+// Build everything
 gulp.task("build", gulp.series(
-  gulp.parallel("build-src", "build-vendor"),
+  "clean",
+  gulp.parallel("build-ts", "build-sass", "build-assets", "build-vendor"),
   "build-html"));
 
 
 // WATCH ///////////////////////
 
 
-gulp.task("watch-src", function() {
-  return gulp.watch(config.srcDir + "/**/*.*", 
+gulp.task("watch-ts", function() {
+  // Watch main TS dir for changes
+  var tsPaths = [config.tsDir];
+
+  // Watch TSD directory for compilation
+  if (inferred.typingsDir) {
+    tsPaths.push(inferred.typingsDir);
+  }
+
+  // Glob to find files in directories
+  tsPaths = _.map(tsPaths, function(p) {
+    return p + "/**/*.ts";
+  });
+
+  return gulp.watch(tsPaths, 
     {debounceDelay: 1000},
-    gulp.series("build-src", "build-html"));
+    gulp.series("clean-js", "build-ts", "build-html"));
+});
+
+gulp.task("watch-sass", function() {
+  return gulp.watch(config.scssDir + "/**/*.*", 
+    {debounceDelay: 1000},
+    gulp.series("clean-css", "build-sass", "build-html"));
 });
 
 gulp.task("watch-vendor", function() {
-  return gulp.watch(config.bowerDir + "/**/bower.json", 
+  return gulp.watch(inferred.bowerDir + "/**/.bower.json", 
     {debounceDelay: 1000},
-    gulp.series("build-vendor", "build-html"));
+    gulp.series("clean-vendor", "build-vendor", "build-html"));
 });
 
-gulp.task("watch", gulp.parallel("watch-src", "watch-vendor"));
+gulp.task("watch-assets", function() {
+  return gulp.watch(config.assetsDir + "/**/*.*", 
+    {debounceDelay: 1000},
+    gulp.series("clean-assets", "build-assets", "build-html"));
+});
+
+gulp.task("watch",
+  gulp.parallel("watch-ts", "watch-sass", "watch-vendor", "watch-assets"));
 
 gulp.task("open", function(cb) {
   connect.server({
@@ -295,7 +411,7 @@ gulp.task("open", function(cb) {
     port: config.port,
     livereload: true
   });
-  opener("http://localhost:" + config.port);
+  openBrowser("http://localhost:" + config.port);
   cb();
 });
 

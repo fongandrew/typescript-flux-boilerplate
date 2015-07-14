@@ -12,5 +12,5 @@ console.log(process.env.NODE_ENV);
 
 declare var gogogo: () => void;
 gogogo = function(): void {
-  $("body").text("Go go gadget!!!");
+  $("body").text("Go go gadget!");
 };
