@@ -7,3 +7,18 @@ h1 {
 h2 {
   color: $primary-color;
 }
+
+.flex-container {
+  display: flex;
+  flex-direction: row;
+}
+
+.flex-container .flex-main {
+  flex-grow: 1;
+  padding: 10px;
+}
+
+.flex-container .flex-left, .flex-container .flex-right {
+  width: 100px;
+  background: #eef;
+}

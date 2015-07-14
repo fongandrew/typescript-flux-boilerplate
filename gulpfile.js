@@ -44,26 +44,27 @@ var config = {
 
 /* global require: false */
 var _ = require("lodash"),
-    path = require("path"),
-    gulp = require("gulp"),
+    autoprefixer = require("gulp-autoprefixer"),
     browserify = require("browserify"),
-    source = require("vinyl-source-stream"),
     buffer = require("vinyl-buffer"),
-    concat = require("gulp-concat"),
-    sourcemaps = require("gulp-sourcemaps"),
-    envify = require("envify/custom"),
-    del = require("del"),
-    rev = require("gulp-rev"),
-    revReplace = require("gulp-rev-replace"),
-    gutil = require("gulp-util"),
-    uglify = require("gulp-uglify"),
-    connect = require("gulp-connect"),
-    opener = require("opener"),
     bower = require("gulp-bower"),
+    concat = require("gulp-concat"),
+    connect = require("gulp-connect"),
+    del = require("del"),
+    envify = require("envify/custom"),
+    flatten = require("gulp-flatten"),
+    gulp = require("gulp"),
+    gutil = require("gulp-util"),
     mainBowerFiles = require("main-bower-files"),
     minifyCss = require("gulp-minify-css"),
-    flatten = require("gulp-flatten"),
-    sass = require("gulp-sass");
+    opener = require("opener"),
+    path = require("path"),
+    sass = require("gulp-sass"),
+    source = require("vinyl-source-stream"),
+    sourcemaps = require("gulp-sourcemaps"),
+    rev = require("gulp-rev"),
+    revReplace = require("gulp-rev-replace"),
+    uglify = require("gulp-uglify");
 
 
 // INSTALL ///////////////////////////
@@ -110,7 +111,7 @@ gulp.task("clean-vendor", function(cb) {
 // Clean everything => remove the directory rather than globbing our way
 // through specific patterns
 gulp.task("clean", function(cb) {
-  del([config.distDir]);
+  del([config.distDir], cb);
 });
 
 
@@ -159,6 +160,7 @@ gulp.task("build-sass", function() {
   return gulp.src(config.scssDir + "/**/*.scss", {base: config.scssDir})
     .pipe(sourcemaps.init())
     .pipe(sass())
+    .pipe(autoprefixer())
     .pipe(concat("bundle.css"))
     .pipe(rev())                  // cache-buster
     .pipe(sourcemaps.write())
@@ -256,17 +258,9 @@ gulp.task("build-vendor", gulp.series("clean-vendor",
 gulp.task("build-html", function() {
   // Use the manifest for rewriting asset references (for cache-busting)
   var manifests = gulp.src(config.manifestsDir + "/**/*.json");
-  // var tsManifest = gulp.src(config.distDir + "/ts-manifest.json");
-  // var vendorJsManifest = gulp.src(
-  //   config.distDir + config.distDirVendor + "/vendor-js-manifest.json");
-  // var vendorCssManifest = gulp.src(
-  //   config.distDir + config.distDirVendor + "/vendor-css-manifest.json");
 
   return gulp.src(config.srcDir + "/**/*.html")
     .pipe(revReplace({manifest: manifests}))
-    // .pipe(revReplace({manifest: tsManifest}))
-    // .pipe(revReplace({manifest: vendorJsManifest}))
-    // .pipe(revReplace({manifest: vendorCssManifest}))
     .pipe(gulp.dest(config.distDir))
 
     // Trigger live-reload
