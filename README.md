@@ -22,10 +22,11 @@ What's Included
   written out to the `dist/vendor` directory as appropriate. If you don't have 
   Bower installed globally, you can run the package-specific version of Bower 
   with `npm run bower -- [bower commands here]`.
-* Browserify - TypeScript files are compiled using Browserify and Tsify,
-  meaning you can use NodeJS- / CommonJS-style `requires` in TypeScript.
-  The build process will use `src/ts/app.ts` as the entry point for all
-  Browserify requires. See the 
+* [Browserify](http://browserify.org/) - TypeScript files are compiled using 
+  Browserify and [Tsify](https://www.npmjs.com/package/tsify), meaning you 
+  can use NodeJS- / CommonJS-style `requires` in TypeScript. The build process
+  will use `src/ts/app.ts` as the entry point for all Browserify requires. 
+  See the 
   [TypeScript handbook](http://www.typescriptlang.org/Handbook#modules-going-external)
   for more information on how to incorporate CommonJS modules into the app.
 * [Gulp](http://gulpjs.com/) - Gulp 4.0 is used for the build process. See the
@@ -35,9 +36,9 @@ What's Included
   been released into NPM proper as of the time of this writing and includes
   some backwards-incompatible syntax with the current version of Gulp.
 * Minification - CSS and JS files are minifed during the build process.
-* NODE_ENV - Envify is used to set up a `process.env.NODE_ENV` variable equal
-  to either "development" (when calling `npm run dev`) or "production" (when
-  calling `npm build`).
+* NODE_ENV - [Envify](https://www.npmjs.com/package/envify) is used to set up 
+  a `process.env.NODE_ENV` variable equal to either "development" (when calling 
+  `npm run dev`) or "production" (when calling `npm build`).
 * Revision Hashes - User-provided JS, CSS, and other assets will have a hash
   appended to their filenames during the build process for cache-busting 
   purposes. References to these assets from HTML files will be rewritten to
@@ -59,9 +60,9 @@ What's Not Included
 * LiveReload - LiveReload support is enabled on the server side, but you'll
   need to install a [browser extension](http://livereload.com/extensions/)
   for things to work.
-* DefinitelyTyped / TSD - A `tsd.json` file and some basic typings are included
-  but the TSD package manager itself is not included. You can install it with
-  `npm install -g tsd`.
+* [DefinitelyTyped / TSD](http://definitelytyped.org/tsd/) - A `tsd.json` file 
+  and some basic typings are included but the TSD package manager itself is not 
+  included. You can install it with `npm install -g tsd`.
 
 Directory Structure
 -------------------
