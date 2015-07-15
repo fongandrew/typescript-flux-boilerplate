@@ -121,13 +121,12 @@ var inferred = (function() {
 // INSTALL ///////////////////////////
 
 // Install bower components
-var installBower = function() {
+gulp.task("install-bower", function() {
   return bower().pipe(gulp.dest(inferred.bowerDir));
-};
+});
 
 // Run this after npm install
-gulp.task("post-install", gulp.parallel(installBower));
-
+gulp.task("install", gulp.parallel("install-bower"));
 
 // CLEAN ///////////////////////////
 
