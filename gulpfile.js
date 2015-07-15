@@ -42,9 +42,21 @@ var config = {
   // Glob patterns for identiyfing generated vendorfiles
   vendorPatterns: ["./dist/vendor", "./dist/vendor/**/*.*"],
 
-  // Bower packages from which to exclude CSS bundling (e.g. because we prefer 
-  // to use the SASS build of a particular package)
-  cssExclude: [],
+  // Bower's main files aren't always super accurate. We can customize which JS
+  // files get included (or don't get included) by specifying an array of paths
+  // relative to the Bower package's root.
+  customVendorJs: {
+    // e.g. this includes additional JS files from bootstrap
+    // "bootstrap-sass-official": ["assets/javascripts/bootstrap.js",
+    //                             "assets/javascripts/bootstrap-sprockets.js"]
+  },
+
+  // Same as above, but for CSS
+  customVendorCss: {
+    // e.g. this excludes all CSS from fontawesome (useful if we want to
+    // compile SASS directly ourselves)
+    // fontawesome: []
+  },
 
   // Directory for manifest files (used during HTML processing to write
   // hashed cached-busting paths). Sticking these in ./dist makes them
@@ -57,7 +69,7 @@ var config = {
 
 /* global require: false */
 var _ = require("lodash"),
-    argv = require('yargs').argv,
+    argv = require("yargs").argv,
     autoprefixer = require("gulp-autoprefixer"),
     browserify = require("browserify"),
     buffer = require("vinyl-buffer"),
@@ -74,6 +86,7 @@ var _ = require("lodash"),
     openBrowser = require("opener"),
     path = require("path"),
     sass = require("gulp-sass"),
+    // sass = require("node-sass"),
     source = require("vinyl-source-stream"),
     sourcemaps = require("gulp-sourcemaps"),
     rev = require("gulp-rev"),
@@ -242,19 +255,25 @@ gulp.task("build-sass", function() {
   var bundleName = path.basename(config.cssBundle);
   var bundleDir = path.dirname(config.cssBundle);
 
-  return gulp.src(config.scssDir + "/**/*.scss", {base: config.scssDir})
+  return gulp.src(config.scssDir + "/**/*.scss")
     .pipe(sourcemaps.init())
-    .pipe(sass())
-    .pipe(autoprefixer())
+    .pipe(sass({includePaths: inferred.bowerDir, outputStyle: "compressed"}))
+    .on("error", gutil.log)
     .pipe(concat(bundleName))
     .pipe(rev())                  // cache-buster
-    .pipe(sourcemaps.write())
+    // .pipe(sourcemaps.write())
+
+    // For some reason, autoprefixer breaks source maps unless it has its
+    // own block and we set includeContent / sourceRoot opts
+    // .pipe(sourcemaps.init({loadMaps: true}))
+    // .pipe(autoprefixer())
+    // .pipe(sourcemaps.write())
 
     // For some reason, minification + concat don't work well unless each
     // get their own sourcemap block
-    .pipe(sourcemaps.init({loadMaps: true}))
-    .pipe(minifyCss()).on("error", gutil.log)
-    .pipe(sourcemaps.write("./"))
+    // .pipe(sourcemaps.init({loadMaps: true}))
+    // .pipe(minifyCss()).on("error", gutil.log)
+    .pipe(sourcemaps.write("./", {debug: true}))
     .pipe(gulp.dest(bundleDir))
 
     // Write manifest so HTML can update its references accordingly
@@ -271,14 +290,57 @@ gulp.task("build-assets", function() {
     .pipe(gulp.dest(config.manifestsDir));
 });
 
+// Helper for extracting only the Bower files we want - takes an extension
+// and a package map (e.g. config.customVendorJs) telling which relative
+// paths to include for this extension. Removes duplicates and minimized
+// versions of files.
+var bowerFiles = function(ext, pkgMap) {
+  // Gets files based on main
+  var files = mainBowerFiles({
+    filter: function(filepath) {
+      // Check that last X chars match ext but NOT min extension
+      if (filepath.slice(-(ext.length + 1)) !== "." + ext ||
+          filepath.slice(-(ext.length + 5)) === ".min." + ext) {
+        return false;
+      }
+
+      if (! pkgMap) {
+        return true;
+      }
+
+      // Get the package name for this path
+      var relBower = path.relative(
+        path.normalize(inferred.bowerDir),
+        path.normalize(filepath));
+      var pkgName = relBower.split(path.sep)[0];
+
+      // Exclude if in package map
+      return !pkgMap[pkgName];
+    }
+  });
+
+  // Add on files from pkgMap in absolute path form to be consistent with
+  // mainBowerFiles
+  var pkgMapFiles = _.flatten(
+    _.map(pkgMap, function(pkgPaths, pkgName) {
+      return _.map(pkgPaths, function(pkgPath) {
+        pkgPath = [inferred.bowerDir, pkgName, pkgPath].join("/");
+        return path.resolve(pkgPath);
+      });
+    }));
+  files = files.concat(pkgMapFiles);
+
+  // Remove duplicates and return
+  return _.uniq(files);
+};
+
 // Concatenate vendor js files from bower_components, minify, compile
 // source maps and push
 gulp.task("build-bower-js", function() {
   var bundleName = path.basename(config.vendorJsBundle);
   var bundleDir = path.dirname(config.vendorJsBundle);
-  var jsFiles = mainBowerFiles({
-    filter: "**/*.js"
-  });
+  var jsFiles = bowerFiles("js", config.customVendorJs);
+
   return gulp.src(jsFiles, {base: inferred.bowerDir})
     // Concatenate files while preserving source map and add a version hash
     // for cache-busting purposes
@@ -303,19 +365,7 @@ gulp.task("build-bower-js", function() {
 gulp.task("build-bower-css", function() {
   var bundleName = path.basename(config.vendorCssBundle);
   var bundleDir = path.dirname(config.vendorCssBundle);
-
-  // Pull CSS files from Bower but exclude those marked for exclusion
-  var cssFiles = mainBowerFiles({
-    filter: function(filepath) {
-      if (/\.css$/.test(filepath)) {
-        filepath = path.normalize(filepath);
-        return !_.any(config.cssExclude, function(pkg) {
-          var pattern = path.normalize(inferred.bowerDir + "/" + pkg);
-          return _.contains(filepath, pattern);
-        });
-      }
-    }
-  });
+  var cssFiles = bowerFiles("css", config.customVendorCss);
 
   return gulp.src(cssFiles, {base: inferred.bowerDir})
     // Concatenate vendor.css into a single cache-busting bundle
@@ -371,7 +421,6 @@ gulp.task("build", gulp.series(
 
 
 // WATCH ///////////////////////
-
 
 gulp.task("watch-ts", function() {
   // Watch main TS dir for changes

@@ -1,12 +1,5 @@
 @import "partial";
-
-h1 {
-  padding: 10px;
-}
-
-h2 {
-  color: $primary-color;
-}
+@import "bootstrap-sass-official/assets/stylesheets/bootstrap";
 
 .flex-container {
   display: flex;
