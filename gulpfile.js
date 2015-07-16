@@ -70,7 +70,6 @@ var config = {
 /* global require: false */
 var _ = require("lodash"),
     argv = require("yargs").argv,
-    async = require("async"),
     autoprefixer = require("gulp-autoprefixer"),
     browserify = require("browserify"),
     buffer = require("vinyl-buffer"),
@@ -80,19 +79,16 @@ var _ = require("lodash"),
     del = require("del"),
     envify = require("envify/custom"),
     flatten = require("gulp-flatten"),
-    fs = require("fs"),
     gulp = require("gulp"),
     glob = require("glob"),
     gutil = require("gulp-util"),
     mainBowerFiles = require("main-bower-files"),
     minifyCss = require("gulp-minify-css"),
-    mkdirp = require("mkdirp"),
     openBrowser = require("opener"),
     path = require("path"),
     sass = require("node-sass"),
     source = require("vinyl-source-stream"),
     sourcemaps = require("gulp-sourcemaps"),
-    temp = require("temp"),
     rev = require("gulp-rev"),
     revReplace = require("gulp-rev-replace"),
     uglify = require("gulp-uglify");
@@ -144,6 +140,7 @@ gulp.task("install-bower", function() {
 
 // Run this after npm install
 gulp.task("install", gulp.parallel("install-bower"));
+
 
 // CLEAN ///////////////////////////
 
@@ -254,92 +251,71 @@ gulp.task("build-ts", function() {
     .pipe(gulp.dest(config.manifestsDir));
 });
 
-// Build SASS files in temporary directory. For some reason, gulp-sass doesn't
-// work all that well with relative parent imports (e.g. @import "../thing"),
-// so call Node-SASS directly and stick in a temp dir for Gulp to find.
-var sassTmpPath;
-var sassTmpBuilder = function(gulpCb) {
-  async.waterfall([
-    // Create temporary directory
-    function(callback) {
-      temp.track();
-      temp.mkdir("sass-temp", function(err, dirPath) {
-        sassTmpPath = dirPath;
-        callback(err, dirPath);
-      });
-    },
+// Returns a Gulp stream with concatenated and compiled SASS files
+// This writes source maps better than relying on gulp-sass, gulp-concat, and 
+// gulp-minify-css do.
+var sassConcat = function(base, bundleName, sassOpts) {
+  var stream = source(bundleName);
 
-    // Glob files 
-    function(tmpPath, callback) {
-      glob(config.scssDir + "/**/*.scss", function(err, filenames) {
-        callback(err, tmpPath, filenames);
-      });
-    },
+  // Helper that returns true if no error, emits error and ends stream if
+  // there is an error passed
+  var errOk = function(err) {
+    if (err) {
+      stream.emit("error", new gutil.PluginError("sassConcat", err));
+      stream.end();
+    }
+    return !err;
+  };
 
-    // Create directories and calculate relative pats
-    function(tmpPath, filenames, callback) {
-      var mkdirTasks = _.map(filenames, function(fn) {
-        return function(mkdirCb) {
-          var fnBase = path.basename(fn, ".scss");
-          var outputDir = [
-            tmpPath,
-            path.dirname(path.relative(config.scssDir, fn)),
-          ].join(path.sep);
-          mkdirp(outputDir, function(mkdirErr) {
-            mkdirCb(mkdirErr, {
-              inFn: fn,
-              outFn: [outputDir, fnBase + ".css"].join(path.sep)
-            });
-          });
-        };
-      });
-      async.parallel(mkdirTasks, function(err, results) {
-        callback(err, tmpPath, results);
-      });
-    },
-
-    // Render each SASS file
-    function(tmpPath, filenames, callback) {
-      var renderTasks = _.map(filenames, function(fnObj) {
-        return function(renderCb) {
-          var fnBase = path.basename(fnObj.inFn, ".scss");
-          sass.render({
-            file: fnObj.inFn,
-            sourceMap: fnBase + ".css.map",
-            sourceMapContents: true,
-            sourceMapEmbed: true,
-            outputStyle: "compressed",
-            includePaths: ["./bower_components"]
-          }, function(sassErr, sassRes) {
-            if (sassErr) {
-              renderCb(sassErr);
-            } else {
-              fs.writeFile(fnObj.outFn, sassRes.css, function(writeErr) {
-                renderCb(writeErr);
-              });
-            }
-          });
-        };
+  // Glob the filenames we need
+  glob(base + "/**/*.scss", function(globErr, filenames) {
+    if (errOk(globErr)) {
+      // Filter out partials
+      filenames = _.filter(filenames, function(fn) {
+        return path.basename(fn)[0] !== "_";
       });
 
-      async.parallel(renderTasks, function(err) {
-        callback(err);
+      // Construct SASS imports with paths relative to base
+      filenames = _.map(filenames, function(fn) {
+        var relPath = path.relative(base, fn).replace("\\", "/");
+        return "@import \"" + relPath + "\";";
+      });
+
+      // Buffer a special SASS file that imports everything
+      sassOpts = sassOpts || {};
+      sassOpts.data = filenames.join("\n");
+      sassOpts.includePaths = sassOpts.includePaths || [];
+      sassOpts.includePaths.push(base);
+
+      // Render to stream
+      sass.render(sassOpts, function(sassErr, sassRes) {
+        if (errOk(sassErr)) {
+          stream.end(sassRes.css);
+        }
       });
     }
-  ], function(err) {
-    gulpCb(err);
   });
+
+  return stream;
 };
 
-// Compile, concatenate, and minimize SASS/SCSS files with sourcemaps
-gulp.task("build-sass", gulp.series(sassTmpBuilder, function() {
+gulp.task("build-sass", function() {
   var bundleName = path.basename(config.cssBundle);
   var bundleDir = path.dirname(config.cssBundle);
 
-  return gulp.src(sassTmpPath + "/**/*.css")
+  return sassConcat(config.scssDir, bundleName, {
+      sourceMap: bundleName + ".map",
+      sourceMapContents: true,
+      sourceMapEmbed: true,
+      outputStyle: "compressed",
+      includePaths: ["./bower_components"]})
+    
+    // Sourcemaps needs buffer
+    .pipe(buffer())
+
+    // Additional Gulp-y transformations not handled by SASS directly
     .pipe(sourcemaps.init({loadMaps: true}))
-    .pipe(concat(bundleName))
-    .pipe(autoprefixer())           // brwser-prefixes
+    .pipe(autoprefixer())           // browser-prefixes
     .pipe(rev())                    // cache-buster
     .pipe(sourcemaps.write("./"))
     .pipe(gulp.dest(bundleDir))
@@ -347,7 +323,7 @@ gulp.task("build-sass", gulp.series(sassTmpBuilder, function() {
     // Write manifest so HTML can update its references accordingly
     .pipe(rev.manifest("sass-manifest.json"))
     .pipe(gulp.dest(config.manifestsDir));
-}));
+});
 
 // Copy assets over to dist, use a rev hash to cache-bust
 gulp.task("build-assets", function() {
