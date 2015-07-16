@@ -308,7 +308,7 @@ gulp.task("build-sass", function() {
       sourceMapContents: true,
       sourceMapEmbed: true,
       outputStyle: "compressed",
-      includePaths: ["./bower_components"]})
+      includePaths: [inferred.bowerDir]})
     
     // Sourcemaps needs buffer
     .pipe(buffer())
@@ -391,7 +391,7 @@ gulp.task("build-bower-js", function() {
     .pipe(sourcemaps.init())
     .pipe(concat(bundleName))
     .pipe(rev())
-    .pipe(sourcemaps.write())
+    .pipe(sourcemaps.write({sourceRoot: inferred.bowerDir}))
 
     // For some reason concat + uglify doesn't prserve source maps unless each
     // is wrapped in their own sourcemaps block
@@ -416,7 +416,7 @@ gulp.task("build-bower-css", function() {
     .pipe(sourcemaps.init())
     .pipe(concat(bundleName))
     .pipe(rev())
-    .pipe(sourcemaps.write())
+    .pipe(sourcemaps.write({sourceRoot: inferred.bowerDir}))
 
     // For some reason, minification + concat don't work well unless each
     // get their own sourcemap block
