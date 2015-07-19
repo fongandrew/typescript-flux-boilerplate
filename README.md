@@ -1,7 +1,7 @@
 TypeScript + Flux Boilerplate
 =============================
 This includes some boilerplate code for generating a single-page(-ish) 
-Flux + React app using Typescript, Browserify, and SASS, among other things.
+Flux + React app using Typescript, Webpack, and SASS, among other things.
 
 Getting Started
 ---------------
@@ -23,11 +23,13 @@ What's Included
   Bower installed globally, you can run the package-specific version of Bower 
   with `npm run bower -- [bower commands here]`.
 
-* [Browserify](http://browserify.org/) - TypeScript files are compiled using 
-  Browserify and [Tsify](https://www.npmjs.com/package/tsify), meaning you 
-  can use NodeJS- / CommonJS-style `requires` in TypeScript. The build process
-  will use `src/ts/app.ts` as the entry point for all Browserify requires. 
-  See the 
+* [Webpack](http://webpack.github.io/) - TypeScript files are compiled using 
+  Webpack and the
+  [Awesome Typescript Loader](https://www.npmjs.com/package/awesome-typescript-loader), 
+  meaning you can use NodeJS- / CommonJS-style `requires` in TypeScript. 
+  The build process will use `src/ts/app.ts` as the entry point for all 
+  Webpack requires. Note that Webpack is only used to handle TS files in
+  this build and that stylesheets and other assets are just copied over. See the 
   [TypeScript handbook](http://www.typescriptlang.org/Handbook#modules-going-external)
   for more information on how to incorporate CommonJS modules into the app.
 
