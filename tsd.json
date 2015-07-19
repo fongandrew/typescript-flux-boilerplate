@@ -7,6 +7,12 @@
   "installed": {
     "jquery/jquery.d.ts": {
       "commit": "38c6ccfde0e67ff10d7408e0ee8b7720b3f21d3b"
+    },
+    "react/react.d.ts": {
+      "commit": "db475daba23206e8cd0ac04d47f0764f4a62f7da"
+    },
+    "flux/flux.d.ts": {
+      "commit": "db475daba23206e8cd0ac04d47f0764f4a62f7da"
     }
   }
 }
