@@ -71,7 +71,6 @@ var config = {
 var _ = require("lodash"),
     argv = require("yargs").argv,
     autoprefixer = require("gulp-autoprefixer"),
-    browserify = require("browserify"),
     buffer = require("vinyl-buffer"),
     bower = require("gulp-bower"),
     concat = require("gulp-concat"),
@@ -79,11 +78,13 @@ var _ = require("lodash"),
     del = require("del"),
     envify = require("envify/custom"),
     flatten = require("gulp-flatten"),
+    fs = require("fs"),
     gulp = require("gulp"),
     glob = require("glob"),
     gutil = require("gulp-util"),
     mainBowerFiles = require("main-bower-files"),
     minifyCss = require("gulp-minify-css"),
+    mkdirp = require("mkdirp"),
     openBrowser = require("opener"),
     path = require("path"),
     sass = require("node-sass"),
@@ -91,7 +92,8 @@ var _ = require("lodash"),
     sourcemaps = require("gulp-sourcemaps"),
     rev = require("gulp-rev"),
     revReplace = require("gulp-rev-replace"),
-    uglify = require("gulp-uglify");
+    uglify = require("gulp-uglify"),
+    webpack = require("webpack");
 
 // Infer some other vars from related files
 var inferred = (function() {
@@ -202,9 +204,20 @@ gulp.task("clean", function(cb) {
 
 // BUILD //////////////////////////
 
-// Compile Typescript
-gulp.task("build-ts", function() {
-  var bundleName = path.basename(config.jsBundle);
+// Compile TypesScript using Webpack
+// 
+// We're only using Webpack to compile our initial JS bundle prior to running
+// some Gulp transformations, rather than using its full set of loaders and 
+// import capabilities. This makes it a little more straight-forward to do
+// things like bundle up all of our Bower assets without having to explicitly
+// require them. Ideally, we actually use Browserify for this because it's more
+// lightweight and "stream-y", but JSX support is a little better over with 
+// Webpack right now.
+// 
+// TODO: May want to switch to using Webpack dev server for faster rebuilds
+// 
+gulp.task("build-ts", function(cb) {
+  var bundleName = path.basename(config.jsBundle, ".js");
   var bundleDir = path.dirname(config.jsBundle);
 
   // Env variables
@@ -215,40 +228,61 @@ gulp.task("build-ts", function() {
     envVars.NODE_ENV = "development";
   }
 
-  // Browserify traces all requires from entry point
-  // NB1: returning is crucial to things running in order
-  // NB2: debug = true => sourcemaps
-  return browserify(config.tsEntryPoint, {debug: true})    
-    .plugin("tsify", { noImplicitAny: true })       // Typescript compilation
-    .transform(envify(envVars))                     // Env variables
-    .bundle()
-    .on("error", gutil.log) // This is where Typescript errors get handled
+  webpack({
+    entry: {app: config.tsEntryPoint},
 
-    // Convert Browserify stream to Vinyl stream for gulp
-    .pipe(source(bundleName))
+    resolve: {
+      extensions: ["", ".ts", ".tsx", ".webpack.js", ".web.js", ".js"]
+    },
 
-    // Because both rev and sourcemaps need buffers isntead of streams        
-    .pipe(buffer())
+    // Inline because we'll be using Gulp to rewrite source maps
+    devtool: "source-map",
 
-    // Rewrite names to bust caches on reload
-    .pipe(rev())
+    output: {
+      path: bundleDir,
+      filename: bundleName + "-[hash].js"
+      //filename: bundleName + ".js"
+    },
 
-    // Write sourcemaps for nicer debugging
-    // loadMaps = true so we can load tsify sourcemaps
-    .pipe(sourcemaps.init({loadMaps: true}))
+    module: {
+      loaders: [
+        { test: /\.ts(x?)$/, 
+          loader: "transform/cacheable?0!awesome-typescript-loader" }
+      ]
+    },
 
-    // Minimization
-    .pipe(uglify()).on("error", gutil.log)
+    transforms: [envify(envVars)],
+    plugins: [new webpack.optimize.UglifyJsPlugin()]
+  }, 
 
-    // Write source map after uglify (which further modifies source maps)
-    .pipe(sourcemaps.write("./"))
+  function(err, stats) {
+    if (err) { 
+      cb(new gutil.PluginError("webpack", err)); 
+      return;
+    }
 
-    // Write TS field
-    .pipe(gulp.dest(bundleDir))
+    var manifest = {};
+    manifest[bundleName + ".js"] = stats.toJson().assetsByChunkName.app[0];
 
-    // Write manifest so HTML can update its references accordingly
-    .pipe(rev.manifest("ts-manifest.json"))
-    .pipe(gulp.dest(config.manifestsDir));
+    // Ensure directory exists before writing
+    mkdirp(config.manifestsDir, function(mkdirErr) {
+      if (mkdirErr) {
+        cb(new gutil.PluginError("webpack", mkdirErr));
+        return;
+      }
+
+      // Write manifest to file
+      fs.writeFile(config.manifestsDir + "/" + "ts-manifest.json",
+        JSON.stringify(manifest),
+        function (writeErr) {
+          if (writeErr) {
+            cb(new gutil.PluginError("webpack", writeErr));
+          } else {
+            cb();
+          }
+        });
+    });
+  });
 });
 
 // Returns a Gulp stream with concatenated and compiled SASS files

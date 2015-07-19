@@ -16,7 +16,7 @@
   "noempty"       : true,     // true: Prohibit use of empty blocks
   "nonew"         : false,    // true: Prohibit use of constructors for side-effects (without assignment)
   "plusplus"      : false,    // true: Prohibit use of `++` & `--`
-  "quotmark"      : "double", // Quotation mark consistency:
+  "quotmark"      : false,    // Quotation mark consistency:
                               //   false    : do nothing (default)
                               //   true     : ensure whatever is used is consistent
                               //   "single" : require single quotes
@@ -29,7 +29,7 @@
   "maxdepth"      : false,    // {int} Max depth of nested blocks (within functions)
   "maxstatements" : false,    // {int} Max number statements per function
   "maxcomplexity" : false,    // {int} Max cyclomatic complexity per function
-  "maxlen"        : 80,       // {int} Max number of characters per line
+  "maxlen"        : 120,      // {int} Max number of characters per line
 
   // Relaxing
   "asi"           : false,     // true: Tolerate Automatic Semicolon Insertion (no semicolons)
