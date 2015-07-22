@@ -1,5 +1,11 @@
-@import "partial";
-@import "bootstrap-sass-official/assets/stylesheets/bootstrap";
+@import "./variables";
+
+// // Need to rewrite icon-font-path to point to where they're stored relative
+// // to bower_ompconents before import so Webpack's web-loader can find them
+$icon-font-path: "~bootstrap-sass-official/assets/fonts/bootstrap/";
+@import "~bootstrap-sass-official/assets/stylesheets/bootstrap";
+
+h1 { color: green; }
 
 .flex-container {
   display: flex;

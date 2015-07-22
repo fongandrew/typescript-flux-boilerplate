@@ -1,6 +1,11 @@
 {
     "compilerOptions": {
         "module": "commonjs",
-        "noImplicitAny": true
-    }
+        "noImplicitAny": true,
+        "jsx": "react"
+    },
+    "files": [
+        "./src/ts/app.ts"
+    ],
+    "compileOnSave": false
 }

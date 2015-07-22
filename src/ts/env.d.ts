@@ -1,9 +1,7 @@
-// Custom typing for just Node.js's process.env (used with envify)
-// This isn't necessary if we use TSD to bring in the full Node.js type
-// definitions
-interface NodeJSProcess {
-  env: any;
+// Environment variables provided by Webpack
+declare var PRODUCTION: boolean;
+
+// Declare any vars we want to add to Window
+interface Window {
+  React: any;
 }
-
-declare var process: NodeJSProcess;
-
