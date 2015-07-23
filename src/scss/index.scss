@@ -5,7 +5,17 @@
 $icon-font-path: "~bootstrap-sass-official/assets/fonts/bootstrap/";
 @import "~bootstrap-sass-official/assets/stylesheets/bootstrap";
 
-h1 { color: green; }
+h1 {
+  color: $brand-primary;
+
+  i.fa {
+    padding-right: 0.5em;
+  }
+}
+
+.alert .fa-fw {
+  width: 1.5em;
+}
 
 .flex-container {
   display: flex;
