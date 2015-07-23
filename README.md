@@ -12,11 +12,11 @@ if you haven't already.
 `npm install` will run an initial install of node and bower requirements.
 
 `npm run watch` will start a development server that monitors project 
- directories and rebuilds the project as appropriate. By default, the
- dev server will listen at http://localhost:8000/
+directories and rebuilds the project as appropriate. By default, the
+dev server will listen at http://localhost:8000/.
 
-`npm build` will bundle up various files in production mode and push them to 
- the `dist` directory.
+`npm run build` will bundle up various files in production mode and push them 
+to the `dist` directory.
 
 What's Included
 ---------------
@@ -26,6 +26,10 @@ What's Included
   `require` to request static assets in addition to scripts. Webpack relies on 
   `require` to know which assets to add to the build. Be default, `src/index.js`
   serves as the entry point for all Webpack assets.
+
+* [Webpack Dev Server](http://webpack.github.io/docs/webpack-dev-server.html) -
+  The development server can be launched via `npm run watch` (or 
+  `gulp watch`) and is configured to use Webpack's hot module reload.
 
 * Typescript files are compiled using Webpack and 
   [TS Loader](https://github.com/jbrantly/ts-loader). This means you can use 
@@ -102,16 +106,18 @@ This organizational structure can be adjusted by editing `config.js`
 * `src/scss` - Where Gulp will look for SASS / SCSS files to compile.
 
 * `src/index.js` - The entry point for Webpack to find all other assets. By
-  default, `src/bower_reqs.js`, `src/ts/app.ts`, and `src/scss/index.scss`
-  are required from this file. You should add all other additional files 
-  to either the index or one of the files linked to by the index, as
-  appropriate.
+  default, `src/bower_reqs.js`, `src/ts/app.ts`, `src/scss/index.scss`,
+  and `src/index.html` are required from this file. You should add all other 
+  additional files to either the index or one of the files linked to by the 
+  index, as appropriate.
 
 * `src/bower_reqs.js` - An auto-generated file listing out requirements to
   the "main" files for Bower components.
 
-* `src/template.html` - A template used by Webpack to generate an
-  `index.html` file for the app.
+* `src/index.html` - A template used by Webpack to generate an
+  `index.html` file for the app. You can enclose references to assets
+  with relative paths and double brackets (e.g. `[[../assets/favicon.ico]]`).
+  You can also use asterisks as wildcards for generated asset names.
 
 * `config.js` - Some basic variables to configure how Gulp and Webpack do
   their thing.

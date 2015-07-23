@@ -46,7 +46,9 @@ var wpConfig = {
 
 // Configure loaders based on file extensions
 var addLoader = function(ext, loaders, extra) {
-  ext = new RegExp("\\." + ext + "(\\?.*)?$");
+  if (_.isString(ext)) {
+    ext = new RegExp("\\." + ext + "(\\?.*)?$");
+  }
   loaders = _.isArray(loaders) ? loaders.join("!") : loaders;
   extra = extra || {};
   wpConfig.module.loaders.push(_.extend({}, {
@@ -66,15 +68,18 @@ var cssBundle = 'bundle' + (production ? '-[contenthash:12]' : '') + '.css';
 var extractPlugin = new ExtractTextPlugin(cssBundle, {allChunks: true});
 wpConfig.plugins.push(extractPlugin);
 
+var addExtract = function(ext, loaders, extra) {
+  loaders = loaders.join("!");
+  addLoader(ext, extractPlugin.extract("style-loader", loaders), extra);
+};
 var autoprefixer = "autoprefixer";
 if (config.autoprefixerOpts) { autoprefixer += "?" + config.autoprefixerOpts; } 
 var cssLoader = "css?sourceMap" + (production ? "&minimize" : "");
 var sassLoader = "sass?sourceMap&includePaths[]=" + 
   path.resolve(config.bowerDir);
-addLoader("scss", extractPlugin.extract("style-loader", 
-          [cssLoader, autoprefixer, sassLoader].join("!")));
-addLoader("css", extractPlugin.extract("style-loader", 
-          [cssLoader, autoprefixer].join("!")));
+
+addExtract("scss", [cssLoader, autoprefixer, sassLoader]);
+addExtract("css", [cssLoader, autoprefixer]);
 
 // Static assets
 var fileLoader = "file?name=assets/[name]-[hash:12].[ext]";
@@ -87,21 +92,22 @@ addLoader("ttf",   fileLoader + "&mimetype=application/vnd.ms-fontobject");
 addLoader("eot",   fileLoader + "&mimetype=application/x-font-ttf");
 addLoader("svg",   fileLoader + "&mimetype=image/svg+xml");
 
+// Favicon - preserve at root
+addLoader(/\.ico$/, "file?name=[name].[ext]&mimetype=image/x-icon");
 
-// HTML ///////////////////////////////////////////
-
-// Generate a static HTML page linking to latest bundle copies
-var HtmlWebpackPlugin = require('html-webpack-plugin');
-var htmlOpts = {
-  title: config.title,
-  favicon: config.faviconPath,
-  template: config.templatePath
+// HTML
+var PathRewriterPlugin = require('webpack-path-rewriter');
+var emitOptions = {
+  name: "[path][name].html",
+  context: config.srcDir
 };
 if (watchMode) {
-  htmlOpts.extraScripts = ["http://localhost:" + config.devPort + 
-                           "/webpack-dev-server.js"];
+  emitOptions.loader = "replace?flags=i&regex=<body>&sub=<body>" +
+                       "<script src=\"http://localhost:" + config.devPort + 
+                       "/webpack-dev-server.js\"></script>";
 }
-wpConfig.plugins.push(new HtmlWebpackPlugin(htmlOpts));
+addLoader("html", PathRewriterPlugin.rewriteAndEmit(emitOptions));
+wpConfig.plugins.push(new PathRewriterPlugin({includeHash: true}));
 
 
 // MISC PLUGINS //////////////////////

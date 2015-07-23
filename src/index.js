@@ -4,3 +4,5 @@
 require('./bower_reqs.js');
 require('./ts/app.ts');
 require('./scss/index.scss');
+
+require('./index.html');

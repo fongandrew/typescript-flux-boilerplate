@@ -11,14 +11,13 @@ var _ = require("lodash"),
     gulp = require("gulp"),
     gutil = require("gulp-util"),
     mainBowerFiles = require("main-bower-files"),
-    // openBrowser = require("opener"),
     path = require("path"),
     webpack = require("webpack"),
     WebpackDevServer = require("webpack-dev-server");
 
 // Override NODE_ENV if arguments call for it (this impacts webpack
 // configuration)
-process.env.NODE_ENV = (argv.production || "development");
+process.env.NODE_ENV = (argv.production ? "production" : "development");
 
 // Install bower components
 gulp.task("install-bower", function() {
