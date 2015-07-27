@@ -107,7 +107,8 @@ if (watchMode) {
                        "/webpack-dev-server.js\"></script>";
 }
 addLoader("html", PathRewriterPlugin.rewriteAndEmit(emitOptions));
-wpConfig.plugins.push(new PathRewriterPlugin({includeHash: true}));
+wpConfig.plugins.push(new PathRewriterPlugin({includeHash: true, 
+                                              emitStats: false  }));
 
 
 // MISC PLUGINS //////////////////////
