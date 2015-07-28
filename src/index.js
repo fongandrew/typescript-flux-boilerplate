@@ -14,7 +14,7 @@ requireAsset = function(path) {
 };
 
 // Auto-generated Bower file 
-require('./bower_reqs.js');
+require('./bower-reqs.js');
 
 // Main TypeScript app
 require('./ts/app.ts');
