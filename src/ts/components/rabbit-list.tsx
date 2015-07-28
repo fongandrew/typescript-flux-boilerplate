@@ -50,9 +50,13 @@ class RabbitList extends React.Component<IRabbitListProps, IRabbitListState> {
   // Implement as arrow function so "this" value is properly referenced
   private onChange = (): void => this.setState(this.getState());
 
+  // Get all rabbits, sort by date, ascending
   private getState(): IRabbitListState {
     return {
-      rabbits: rabbits.store.getAll()
+      rabbits: _.sortBy(rabbits.store.getAll(), 
+        function(rabbit: rabbits.Rabbit): number {
+          return rabbit.createdOn.getTime();
+        })
     };
   }
 }

@@ -18,12 +18,14 @@ imgMap[Color.GRAY]  = requireAsset("img/nl.png");
 interface RabbitData {
   _id: string;
   color: string;
+  createdOn: Date;
 }
 
 // Actual representation of a single rabbit
 export class Rabbit implements storeLib.StoreObject {
   _id: string;
   color: Color;
+  createdOn: Date;
 
   constructor(data: RabbitData);
   constructor(color: Color);
@@ -33,6 +35,7 @@ export class Rabbit implements storeLib.StoreObject {
     } else {               // Just color
       this.color = val;
     }
+    this.createdOn = new Date();
   }
 
   image(): string {
@@ -45,7 +48,8 @@ export class Rabbit implements storeLib.StoreObject {
     let color: any = Color[this.color];
     return {
       _id: this._id,
-      color: color
+      color: color,
+      createdOn: this.createdOn
     };
   }
 }
