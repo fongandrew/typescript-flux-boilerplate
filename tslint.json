@@ -31,7 +31,7 @@
         "trace"
     ],
     "no-construct": true,
-    "no-constructor-vars": true,
+    "no-constructor-vars": false,
     "no-debugger": true,
     "no-duplicate-key": true,
     "no-shadowed-variable": true,
@@ -52,7 +52,6 @@
     "one-line": [true,
         "check-open-brace",
         "check-catch",
-        "check-else",
         "check-whitespace"
     ],
     "quotemark": [true, "double"],
