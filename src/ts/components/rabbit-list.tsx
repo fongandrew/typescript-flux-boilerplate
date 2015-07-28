@@ -1,15 +1,18 @@
 import _ = require("lodash");
-import React = require("react");
+import React = require("react/addons");
 import rabbits = require("../collections/rabbits");
+import RabbitImg = require("./rabbit-img");
 
-interface IRabbitProps {}
+let CSSTransitionGroup = React.addons.CSSTransitionGroup;
 
-interface IRabbitState {
+interface IRabbitListProps {}
+
+interface IRabbitListState {
   rabbits: rabbits.Rabbit[];
 }
 
-class RabbitList extends React.Component<IRabbitProps, IRabbitState> {
-  constructor(props: IRabbitProps) {
+class RabbitList extends React.Component<IRabbitListProps, IRabbitListState> {
+  constructor(props: IRabbitListProps) {
     super(props);
     this.state = { rabbits: [] };
   }
@@ -19,7 +22,7 @@ class RabbitList extends React.Component<IRabbitProps, IRabbitState> {
       function(rabbit: rabbits.Rabbit) {
         return (
           /* jsx */
-          <img src={rabbit.image()} className="img-circle" key={rabbit._id} />
+          <RabbitImg rabbit={rabbit} key={rabbit._id} />
           /* jsx */
         );
     });
@@ -27,7 +30,9 @@ class RabbitList extends React.Component<IRabbitProps, IRabbitState> {
     return (
       /* jsx */
       <div className="rabbit-list">
-        {rabbits}
+        <CSSTransitionGroup transitionName="inflatable">
+          {rabbits}
+        </CSSTransitionGroup>
       </div>
       /* jsx */
     );
@@ -45,7 +50,7 @@ class RabbitList extends React.Component<IRabbitProps, IRabbitState> {
   // Implement as arrow function so "this" value is properly referenced
   private onChange = (): void => this.setState(this.getState());
 
-  private getState(): IRabbitState {
+  private getState(): IRabbitListState {
     return {
       rabbits: rabbits.store.getAll()
     };

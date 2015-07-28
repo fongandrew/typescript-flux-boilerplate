@@ -1,4 +1,4 @@
-import React = require("react");
+import React = require("react/addons");
 import FA = require("./_fontawesome");
 import RabbitList = require("./rabbit-list");
 import RabbitButtons = require("./rabbit-buttons");

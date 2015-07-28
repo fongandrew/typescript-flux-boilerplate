@@ -1,5 +1,5 @@
 import _ = require("lodash");
-import React = require("react");
+import React = require("react/addons");
 import rabbits = require("../collections/rabbits");
 import rabbitActions = require("../actions/rabbit-actions");
 import FA = require("./_fontawesome");
