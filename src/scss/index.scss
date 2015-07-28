@@ -5,6 +5,8 @@
 $icon-font-path: "~bootstrap-sass-official/assets/fonts/bootstrap/";
 @import "~bootstrap-sass-official/assets/stylesheets/bootstrap";
 
+@import "./rabbits";
+
 h1 {
   color: $brand-primary;
 
@@ -13,7 +15,7 @@ h1 {
   }
 }
 
-.alert .fa-fw {
+.fa-fw {
   width: 1.5em;
 }
 
