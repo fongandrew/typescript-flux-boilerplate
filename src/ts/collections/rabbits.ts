@@ -26,16 +26,23 @@ export class Rabbit implements storeLib.StoreObject {
   _id: string;
   color: Color;
   createdOn: Date;
+  dataStatus: storeLib.DataStatus;
 
   constructor(data: RabbitData);
-  constructor(color: Color);
-  constructor(val: any) {
+  constructor(color: Color, status?: storeLib.DataStatus);
+  constructor(val: any, status?: any) {
     if (_.isObject(val)) { // Data
       _.extend(this, val);
     } else {               // Just color
       this.color = val;
     }
     this.createdOn = new Date();
+    if (status) {
+      this.dataStatus = status;
+    }
+    if (typeof this.dataStatus === "undefined") {
+      this.dataStatus = storeLib.DataStatus.READY;
+    }
   }
 
   image(): string {

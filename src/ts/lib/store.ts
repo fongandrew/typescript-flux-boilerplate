@@ -6,9 +6,12 @@ import dispatcher = require("./dispatcher");
 
 ////////////////
 
+export enum DataStatus { READY, INFLIGHT };
+
 // Wrapper around items that get stored in Store
 export interface StoreObject {
   _id: string;
+  dataStatus: DataStatus;
 }
 
 

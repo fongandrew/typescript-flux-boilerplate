@@ -5,13 +5,26 @@
   display: inline-block;
   position: relative;
 
-  img {
-    box-shadow: 1px 1px 1px 0 rgba(0, 0, 0, 0.3);
-    cursor: pointer;
+  img, .sync-spinner {
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
+  }
+
+  .sync-spinner {
+    font-size: 5em;
+    display: block;
+    color: rgba(255, 255, 255, 0.8);
+  }
+
+  img {
+    box-shadow: 1px 1px 1px 0 rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+
+    &.in-flight {
+      filter: brightness(0.8);
+    }
   }
 }
 
